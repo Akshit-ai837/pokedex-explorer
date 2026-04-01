@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pokédex Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-ball"></span>
+        <h1>Pokédex <span>Explorer</span></h1>
+      </div>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+        <span class="sun">☀️</span>
+        <span class="moon">🌙</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTROLS -->
+  <section class="controls">
+    <div class="controls-inner">
+
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          placeholder="Search Pokémon..."
+          autocomplete="off"
+        />
+      </div>
+
+      <select id="typeFilter" class="select-input">
+        <option value="">All Types</option>
+      </select>
+
+      <select id="sortSelect" class="select-input">
+        <option value="id-asc">ID: Low to High</option>
+        <option value="id-desc">ID: High to Low</option>
+        <option value="name-asc">Name: A → Z</option>
+        <option value="name-desc">Name: Z → A</option>
+      </select>
+
+    </div>
+  </section>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <span id="pokemonCount">Loading Pokémon...</span>
+    <button class="fav-toggle-btn" id="favToggleBtn">❤️ Show Favourites</button>
+  </div>
+
+  <!-- LOADER -->
+  <div class="loader-wrap" id="loader">
+    <div class="pokeball-loader">
+      <div class="ball">
+        <div class="ball-top"></div>
+        <div class="ball-middle"></div>
+        <div class="ball-bottom"></div>
+      </div>
+    </div>
+    <p>Loading Pokémon...</p>
+  </div>
+
+  <!-- POKEMON GRID -->
+  <main class="grid" id="pokemonGrid"></main>
+
+  <!-- NO RESULTS -->
+  <div class="no-results hidden" id="noResults">
+    <p>😢 No Pokémon found!</p>
+    <span>Try a different search or filter.</span>
+  </div>
+
+  <!-- PAGINATION -->
+  <div class="pagination" id="pagination">
+    <button class="page-btn" id="prevBtn" disabled>← Prev</button>
+    <span class="page-info" id="pageInfo">Page 1</span>
+    <button class="page-btn" id="nextBtn">Next →</button>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal" id="modal">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div class="modal-content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
