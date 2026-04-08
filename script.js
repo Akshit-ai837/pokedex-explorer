@@ -2,212 +2,218 @@
 // STATE
 // ===========================
 const STATE = {
-  allPokemon: [],       // all fetched pokemon for current page
-  filteredPokemon: [],  // after search/filter/sort
-  favourites: new Set(JSON.parse(localStorage.getItem('pokeFavourites') || '[]')),
-  currentPage: 1,
-  limit: 24,
-  totalCount: 0,
-  searchQuery: '',
-  selectedType: '',
-  sortOption: 'id-asc',
-  showFavourites: false,
-  debounceTimer: null,
+  allPokemon:  [],
+  filtered:    [],
+  favourites:  new Set(JSON.parse(localStorage.getItem('pokeFavs') || '[]')),
+  page:        1,
+  perPage:     24,
+  query:       '',
+  type:        '',
+  sort:        'id-asc',
+  showFavs:    false,
+  debounce:    null,
+  total:       1302,
+  currentPoke: null,
 };
 
 // ===========================
-// DOM ELEMENTS
+// DOM
 // ===========================
-const grid         = document.getElementById('pokemonGrid');
-const loader       = document.getElementById('loader');
-const noResults    = document.getElementById('noResults');
-const searchInput  = document.getElementById('searchInput');
-const typeFilter   = document.getElementById('typeFilter');
-const sortSelect   = document.getElementById('sortSelect');
-const prevBtn      = document.getElementById('prevBtn');
-const nextBtn      = document.getElementById('nextBtn');
-const pageInfo     = document.getElementById('pageInfo');
-const pokemonCount = document.getElementById('pokemonCount');
-const themeToggle  = document.getElementById('themeToggle');
-const favToggleBtn = document.getElementById('favToggleBtn');
-const modalOverlay = document.getElementById('modalOverlay');
-const modalClose   = document.getElementById('modalClose');
-const modalContent = document.getElementById('modalContent');
+const grid        = document.getElementById('pokemonGrid');
+const loader      = document.getElementById('loader');
+const noResults   = document.getElementById('noResults');
+const searchInput = document.getElementById('searchInput');
+const searchHint  = document.getElementById('searchHint');
+const sortSelect  = document.getElementById('sortSelect');
+const typeChips   = document.getElementById('typeChips');
+const prevBtn     = document.getElementById('prevBtn');
+const nextBtn     = document.getElementById('nextBtn');
+const pageInfo    = document.getElementById('pageInfo');
+const countEl     = document.getElementById('pokemonCount');
+const themeBtn    = document.getElementById('themeToggle');
+const themeIcon   = document.getElementById('themeIcon');
+const favBtn      = document.getElementById('favToggleBtn');
+const overlay     = document.getElementById('modalOverlay');
+const modalClose  = document.getElementById('modalClose');
+const modalFav    = document.getElementById('modalFav');
+const modalContent= document.getElementById('modalContent');
 
 // ===========================
 // THEME
 // ===========================
-const savedTheme = localStorage.getItem('pokeTheme') || 'light';
+const savedTheme = localStorage.getItem('pokeTheme') || 'dark';
 document.documentElement.setAttribute('data-theme', savedTheme);
+themeIcon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
 
-themeToggle.addEventListener('click', () => {
-  const current = document.documentElement.getAttribute('data-theme');
-  const next = current === 'light' ? 'dark' : 'light';
+themeBtn.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('pokeTheme', next);
+  themeIcon.textContent = next === 'dark' ? '☀️' : '🌙';
 });
 
 // ===========================
-// FETCH POKEMON LIST
+// FETCH ALL POKEMON
 // ===========================
-async function fetchPokemonPage(page) {
+async function fetchAll() {
   showLoader(true);
-  grid.innerHTML = '';
-
-  const offset = (page - 1) * STATE.limit;
-  const url = `https://pokeapi.co/api/v2/pokemon?limit=${STATE.limit}&offset=${offset}`;
-
   try {
-    const res  = await fetch(url);
+    const res  = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=${STATE.total}&offset=0`);
     const data = await res.json();
-    STATE.totalCount = data.count;
 
-    // Fetch details for each pokemon in parallel
+    // map() + Promise.all HOF — parallel fetch
     const details = await Promise.all(
-      data.results.map(p => fetchPokemonDetail(p.url))
+      data.results.map(p => fetchOne(p.url))
     );
 
+    // filter() HOF — remove nulls
     STATE.allPokemon = details.filter(Boolean);
     applyFilters();
 
-  } catch (err) {
-    console.error('Error fetching Pokémon:', err);
-    grid.innerHTML = `<p style="color:red;padding:2rem;">Failed to load Pokémon. Check your internet connection.</p>`;
+  } catch (e) {
+    console.error(e);
+    grid.innerHTML = `<p style="color:#ff5252;grid-column:1/-1;text-align:center;padding:3rem;font-weight:800;">⚠️ Failed to load. Check connection and refresh.</p>`;
   } finally {
     showLoader(false);
   }
 }
 
-// ===========================
-// FETCH SINGLE POKEMON
-// ===========================
-async function fetchPokemonDetail(url) {
-  try {
-    const res  = await fetch(url);
-    const data = await res.json();
-    return data;
-  } catch {
-    return null;
-  }
+async function fetchOne(url) {
+  try { const r = await fetch(url); return await r.json(); }
+  catch { return null; }
 }
 
 // ===========================
-// FETCH ALL TYPES (for filter)
+// FETCH TYPES
 // ===========================
 async function fetchTypes() {
   try {
     const res  = await fetch('https://pokeapi.co/api/v2/type?limit=20');
     const data = await res.json();
-    data.results.forEach(type => {
-      const option = document.createElement('option');
-      option.value = type.name;
-      option.textContent = capitalize(type.name);
-      typeFilter.appendChild(option);
-    });
-  } catch (err) {
-    console.error('Error fetching types:', err);
-  }
+
+    // filter() HOF
+    data.results
+      .filter(t => t.name !== 'unknown' && t.name !== 'shadow')
+      .forEach(t => {
+        const btn = document.createElement('button');
+        btn.className = 'type-chip';
+        btn.dataset.type = t.name;
+        btn.textContent = cap(t.name);
+        btn.style.setProperty('--chip-color', typeColor(t.name));
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.type-chip').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          STATE.type = t.name;
+          applyFilters();
+        });
+        typeChips.appendChild(btn);
+      });
+  } catch (e) { console.error(e); }
 }
 
 // ===========================
-// APPLY FILTERS, SORT, SEARCH
+// APPLY FILTERS — HOFs only
 // ===========================
 function applyFilters() {
   let list = [...STATE.allPokemon];
 
-  // Show favourites only
-  if (STATE.showFavourites) {
+  // filter() — favourites
+  if (STATE.showFavs) {
     list = list.filter(p => STATE.favourites.has(p.id));
   }
 
-  // Search using filter() HOF
-  if (STATE.searchQuery) {
+  // filter() — search
+  if (STATE.query) {
     list = list.filter(p =>
-      p.name.toLowerCase().includes(STATE.searchQuery.toLowerCase())
+      p.name.toLowerCase().includes(STATE.query.toLowerCase())
+    );
+    searchHint.textContent = `${list.length} found`;
+  } else {
+    searchHint.textContent = '';
+  }
+
+  // filter() + some() — type
+  if (STATE.type) {
+    list = list.filter(p =>
+      p.types.some(t => t.type.name === STATE.type)
     );
   }
 
-  // Type filter using filter() HOF
-  if (STATE.selectedType) {
-    list = list.filter(p =>
-      p.types.some(t => t.type.name === STATE.selectedType)
-    );
-  }
-
-  // Sort using sort() HOF
+  // sort() HOF
   list = list.sort((a, b) => {
-    if (STATE.sortOption === 'id-asc')   return a.id - b.id;
-    if (STATE.sortOption === 'id-desc')  return b.id - a.id;
-    if (STATE.sortOption === 'name-asc') return a.name.localeCompare(b.name);
-    if (STATE.sortOption === 'name-desc')return b.name.localeCompare(a.name);
+    if (STATE.sort === 'id-asc')   return a.id - b.id;
+    if (STATE.sort === 'id-desc')  return b.id - a.id;
+    if (STATE.sort === 'name-asc') return a.name.localeCompare(b.name);
+    if (STATE.sort === 'name-desc')return b.name.localeCompare(a.name);
     return 0;
   });
 
-  STATE.filteredPokemon = list;
-  renderGrid(list);
-  updateStats(list.length);
-  updatePagination();
+  STATE.filtered = list;
+  STATE.page = 1;
+  renderPage();
+  updateCount(list.length);
+  updatePager();
 }
 
 // ===========================
-// RENDER GRID
+// RENDER
 // ===========================
+function renderPage() {
+  const start = (STATE.page - 1) * STATE.perPage;
+  renderGrid(STATE.filtered.slice(start, start + STATE.perPage));
+}
+
 function renderGrid(list) {
   grid.innerHTML = '';
-
-  if (list.length === 0) {
-    noResults.classList.remove('hidden');
-    return;
-  }
-
+  if (!list.length) { noResults.classList.remove('hidden'); return; }
   noResults.classList.add('hidden');
-
-  // map() HOF to create card elements
-  const cards = list.map(pokemon => createCard(pokemon));
-  cards.forEach(card => grid.appendChild(card));
+  list.map(p => buildCard(p)).forEach(c => grid.appendChild(c));
 }
 
 // ===========================
-// CREATE CARD
+// BUILD CARD
 // ===========================
-function createCard(pokemon) {
-  const primaryType = pokemon.types[0].type.name;
-  const isFav = STATE.favourites.has(pokemon.id);
+function buildCard(p) {
+  const type  = p.types[0].type.name;
+  const color = typeColor(type);
+  const img   = p.sprites.other['official-artwork'].front_default || p.sprites.front_default;
+  const isFav = STATE.favourites.has(p.id);
 
   const card = document.createElement('div');
-  card.className = 'card';
-  card.style.setProperty('--type-color', getTypeColor(primaryType));
+  card.className = 'poke-card';
+  card.style.setProperty('--card-color', color);
+  card.style.setProperty('--card-glow', color + '30');
 
   card.innerHTML = `
-    <div class="card-bg bg-${primaryType}">
-      <span class="card-id">#${String(pokemon.id).padStart(3, '0')}</span>
-      <img
-        src="${pokemon.sprites.other['official-artwork'].front_default || pokemon.sprites.front_default}"
-        alt="${pokemon.name}"
-        loading="lazy"
-      />
-      <button class="fav-btn ${isFav ? 'active' : ''}" data-id="${pokemon.id}" title="Favourite">
-        ${isFav ? '❤️' : '🤍'}
+    <div class="card-img-area">
+      <div class="card-img-bg bg-${type}"></div>
+      <div class="card-img-circle"></div>
+      <span class="card-id">#${pad(p.id)}</span>
+      <img class="card-img" src="${img}" alt="${p.name}" loading="lazy"/>
+      <button class="card-star ${isFav ? 'loved' : ''}" title="Favourite">
+        ${isFav ? '★' : '☆'}
       </button>
     </div>
     <div class="card-body">
-      <div class="card-name">${capitalize(pokemon.name)}</div>
-      <div class="types">
-        ${pokemon.types.map(t => `<span class="type-badge type-${t.type.name}">${t.type.name}</span>`).join('')}
+      <div class="card-name">${cap(p.name)}</div>
+      <div class="card-types">
+        ${p.types.map(t => `
+          <div class="type-dot dot-${t.type.name}" title="${cap(t.type.name)}">
+            ${typeEmoji(t.type.name)}
+          </div>
+        `).join('')}
       </div>
     </div>
   `;
 
-  // Click card → open modal
-  card.addEventListener('click', (e) => {
-    if (e.target.closest('.fav-btn')) return;
-    openModal(pokemon);
+  card.addEventListener('click', e => {
+    if (e.target.closest('.card-star')) return;
+    openModal(p);
   });
 
-  // Favourite button
-  card.querySelector('.fav-btn').addEventListener('click', (e) => {
+  card.querySelector('.card-star').addEventListener('click', e => {
     e.stopPropagation();
-    toggleFavourite(pokemon.id, card.querySelector('.fav-btn'));
+    toggleFav(p.id, card.querySelector('.card-star'));
   });
 
   return card;
@@ -216,182 +222,208 @@ function createCard(pokemon) {
 // ===========================
 // TOGGLE FAVOURITE
 // ===========================
-function toggleFavourite(id, btn) {
+function toggleFav(id, btn) {
   if (STATE.favourites.has(id)) {
     STATE.favourites.delete(id);
-    btn.textContent = '🤍';
-    btn.classList.remove('active');
+    btn.textContent = '☆';
+    btn.classList.remove('loved');
   } else {
     STATE.favourites.add(id);
-    btn.textContent = '❤️';
-    btn.classList.add('active');
+    btn.textContent = '★';
+    btn.classList.add('loved');
   }
-  // Save to localStorage
-  localStorage.setItem('pokeFavourites', JSON.stringify([...STATE.favourites]));
-
-  if (STATE.showFavourites) applyFilters();
+  localStorage.setItem('pokeFavs', JSON.stringify([...STATE.favourites]));
+  if (STATE.showFavs) applyFilters();
 }
 
 // ===========================
-// MODAL
+// OPEN MODAL
 // ===========================
-function openModal(pokemon) {
-  const primaryType = pokemon.types[0].type.name;
+function openModal(p) {
+  STATE.currentPoke = p;
+  const type1 = p.types[0].type.name;
+  const color = typeColor(type1);
+  const img   = p.sprites.other['official-artwork'].front_default || p.sprites.front_default;
+  const isFav = STATE.favourites.has(p.id);
+
+  modalFav.textContent = isFav ? '★' : '☆';
+  modalFav.classList.toggle('loved', isFav);
 
   modalContent.innerHTML = `
-    <div class="modal-header bg-${primaryType}">
-      <img class="modal-img" src="${pokemon.sprites.other['official-artwork'].front_default || pokemon.sprites.front_default}" alt="${pokemon.name}" />
-      <div class="modal-header-info">
-        <div class="modal-id">#${String(pokemon.id).padStart(3, '0')}</div>
-        <h2>${capitalize(pokemon.name)}</h2>
-        <div class="types">
-          ${pokemon.types.map(t => `<span class="type-badge type-${t.type.name}">${t.type.name}</span>`).join('')}
-        </div>
-      </div>
+    <div class="modal-hero">
+      <div class="modal-hero-bg bg-${type1}"></div>
+      <div class="modal-hero-overlay"></div>
+      <img class="modal-hero-img" src="${img}" alt="${p.name}"/>
     </div>
-    <div class="modal-body">
-      <h3>Base Stats</h3>
-      ${pokemon.stats.map(s => `
-        <div class="stat-row">
-          <span class="stat-label">${s.stat.name.replace('-', ' ')}</span>
-          <div class="stat-bar-bg">
-            <div class="stat-bar-fill" style="width: ${Math.min(s.base_stat, 150) / 150 * 100}%"></div>
-          </div>
-          <span class="stat-value">${s.base_stat}</span>
+
+    <div class="modal-info">
+
+      <div class="modal-name-row">
+        <span class="modal-name">${cap(p.name)}</span>
+        <span class="modal-gender">♂</span>
+      </div>
+
+      <div class="modal-quick-stats">
+        <div class="quick-stat">
+          <span class="qs-val">${(p.height/10).toFixed(2)} M</span>
+          <span class="qs-lbl">Height</span>
         </div>
-      `).join('')}
-
-      <h3 style="margin-top:1rem;">Abilities</h3>
-      <div class="abilities-list">
-        ${pokemon.abilities.map(a => `<span class="ability-badge">${a.ability.name.replace('-', ' ')}</span>`).join('')}
+        ${p.types.map(t => `
+          <div class="quick-stat">
+            <div class="qs-type-dot dot-${t.type.name}">${typeEmoji(t.type.name)}</div>
+            <span class="qs-lbl">${cap(t.type.name)}</span>
+          </div>
+        `).join('')}
+        <div class="quick-stat">
+          <span class="qs-val">${(p.weight/10).toFixed(1)} KG</span>
+          <span class="qs-lbl">Weight</span>
+        </div>
       </div>
 
-      <h3 style="margin-top:1rem;">Info</h3>
-      <div class="stat-row">
-        <span class="stat-label">Height</span>
-        <span style="font-weight:700">${(pokemon.height / 10).toFixed(1)} m</span>
+      <div class="modal-candy-row">
+        <div class="candy-box">
+          <span class="candy-icon">✦</span>
+          <div>
+            <span class="candy-val">${p.base_experience ?? 0}</span>
+            <span class="candy-lbl">Base XP</span>
+          </div>
+        </div>
+        <div class="candy-box">
+          <span class="candy-icon">◉</span>
+          <div>
+            <span class="candy-val">${p.abilities.length}</span>
+            <span class="candy-lbl">Abilities</span>
+          </div>
+        </div>
       </div>
-      <div class="stat-row">
-        <span class="stat-label">Weight</span>
-        <span style="font-weight:700">${(pokemon.weight / 10).toFixed(1)} kg</span>
+
+      <div class="stat-section">
+        ${p.stats.map(s => `
+          <div class="stat-row">
+            <span class="stat-name">${statShort(s.stat.name)}</span>
+            <div class="stat-track">
+              <div class="stat-fill" style="width:${Math.min(s.base_stat,150)/150*100}%;background:${statBarColor(s.stat.name, color)};"></div>
+            </div>
+            <span class="stat-num">${s.base_stat}</span>
+          </div>
+        `).join('')}
       </div>
-      <div class="stat-row">
-        <span class="stat-label">Base XP</span>
-        <span style="font-weight:700">${pokemon.base_experience ?? 'N/A'}</span>
+
+      <div class="move-row">
+        ${p.moves.slice(0,4).map(m => `
+          <div class="move-chip">
+            <div class="move-dot dot-${type1}">${typeEmoji(type1)}</div>
+            <span>${cap(m.move.name.replace(/-/g,' '))}</span>
+          </div>
+        `).join('')}
       </div>
+
     </div>
   `;
 
-  modalOverlay.classList.remove('hidden');
+  overlay.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
-  modalOverlay.classList.add('hidden');
+  overlay.classList.add('hidden');
   document.body.style.overflow = '';
+  STATE.currentPoke = null;
 }
 
+modalFav.addEventListener('click', () => {
+  if (!STATE.currentPoke) return;
+  toggleFav(STATE.currentPoke.id, modalFav);
+});
 modalClose.addEventListener('click', closeModal);
-modalOverlay.addEventListener('click', (e) => {
-  if (e.target === modalOverlay) closeModal();
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeModal();
-});
+overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ===========================
 // PAGINATION
 // ===========================
-function updatePagination() {
-  const totalPages = Math.ceil(STATE.totalCount / STATE.limit);
-  pageInfo.textContent = `Page ${STATE.currentPage} of ${totalPages}`;
-  prevBtn.disabled = STATE.currentPage === 1;
-  nextBtn.disabled = STATE.currentPage >= totalPages;
+function updatePager() {
+  const total = Math.ceil(STATE.filtered.length / STATE.perPage);
+  pageInfo.textContent = `${STATE.page} / ${Math.max(total,1)}`;
+  prevBtn.disabled = STATE.page === 1;
+  nextBtn.disabled = STATE.page >= total;
 }
 
 prevBtn.addEventListener('click', () => {
-  if (STATE.currentPage > 1) {
-    STATE.currentPage--;
-    fetchPokemonPage(STATE.currentPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  if (STATE.page > 1) { STATE.page--; renderPage(); updatePager(); scrollTop(); }
 });
-
 nextBtn.addEventListener('click', () => {
-  STATE.currentPage++;
-  fetchPokemonPage(STATE.currentPage);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  const total = Math.ceil(STATE.filtered.length / STATE.perPage);
+  if (STATE.page < total) { STATE.page++; renderPage(); updatePager(); scrollTop(); }
 });
 
 // ===========================
-// SEARCH (with debounce)
+// SEARCH debounce
 // ===========================
-searchInput.addEventListener('input', (e) => {
-  clearTimeout(STATE.debounceTimer);
-  STATE.debounceTimer = setTimeout(() => {
-    STATE.searchQuery = e.target.value.trim();
+searchInput.addEventListener('input', e => {
+  clearTimeout(STATE.debounce);
+  STATE.debounce = setTimeout(() => {
+    STATE.query = e.target.value.trim();
     applyFilters();
   }, 400);
 });
 
-// ===========================
-// TYPE FILTER
-// ===========================
-typeFilter.addEventListener('change', (e) => {
-  STATE.selectedType = e.target.value;
+sortSelect.addEventListener('change', e => { STATE.sort = e.target.value; applyFilters(); });
+
+favBtn.addEventListener('click', () => {
+  STATE.showFavs = !STATE.showFavs;
+  favBtn.classList.toggle('active', STATE.showFavs);
+  favBtn.innerHTML = STATE.showFavs ? '♥ Show All' : '♥ Favs';
   applyFilters();
 });
-
-// ===========================
-// SORT
-// ===========================
-sortSelect.addEventListener('change', (e) => {
-  STATE.sortOption = e.target.value;
-  applyFilters();
-});
-
-// ===========================
-// FAVOURITES TOGGLE
-// ===========================
-favToggleBtn.addEventListener('click', () => {
-  STATE.showFavourites = !STATE.showFavourites;
-  favToggleBtn.classList.toggle('active', STATE.showFavourites);
-  favToggleBtn.textContent = STATE.showFavourites ? '❤️ Show All' : '❤️ Show Favourites';
-  applyFilters();
-});
-
-// ===========================
-// STATS BAR
-// ===========================
-function updateStats(count) {
-  pokemonCount.textContent = `Showing ${count} Pokémon`;
-}
-
-// ===========================
-// LOADER
-// ===========================
-function showLoader(show) {
-  loader.classList.toggle('hidden', !show);
-}
 
 // ===========================
 // HELPERS
 // ===========================
-function capitalize(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+function updateCount(n) {
+  const isF = STATE.query || STATE.type || STATE.showFavs;
+  countEl.textContent = isF
+    ? `${n} of ${STATE.allPokemon.length} Pokémon`
+    : `${STATE.allPokemon.length} Pokémon loaded`;
 }
 
-function getTypeColor(type) {
-  const colors = {
-    fire: '#FF6B35', water: '#4FC3F7', grass: '#66BB6A',
-    electric: '#FFD600', psychic: '#EC407A', ice: '#4DD0E1',
-    dragon: '#7C4DFF', dark: '#4A4A6A', fairy: '#F48FB1',
-    normal: '#A5A5A5', fighting: '#D84315', flying: '#90CAF9',
-    poison: '#AB47BC', ground: '#D4A558', rock: '#9E9E6A',
-    bug: '#8BC34A', ghost: '#5C6BC0', steel: '#B0BEC5',
+function showLoader(s)  { loader.classList.toggle('hidden', !s); }
+function cap(s)         { return s.charAt(0).toUpperCase() + s.slice(1); }
+function pad(id)        { return String(id).padStart(3,'0'); }
+function scrollTop()    { window.scrollTo({top:0,behavior:'smooth'}); }
+
+function statShort(name) {
+  const m = { hp:'HP', attack:'Attack', defense:'Defense', 'special-attack':'Sp.Atk', 'special-defense':'Sp.Def', speed:'Speed' };
+  return m[name] || cap(name);
+}
+
+function statBarColor(stat, fallback) {
+  if (stat === 'hp')       return '#4ade80';
+  if (stat === 'attack')   return '#fb923c';
+  if (stat === 'defense')  return '#60a5fa';
+  if (stat === 'speed')    return '#f472b6';
+  return fallback || '#4ade80';
+}
+
+function typeColor(t) {
+  const m = {
+    fire:'#FF6B35', water:'#29B6F6', grass:'#4ade80', electric:'#FFD740',
+    psychic:'#E040FB', ice:'#26C6DA', dragon:'#7C4DFF', dark:'#6A5F9E',
+    fairy:'#F06292', normal:'#9E9E9E', fighting:'#EF6C00', flying:'#42A5F5',
+    poison:'#AB47BC', ground:'#D4A558', rock:'#8D6E63', bug:'#8BC34A',
+    ghost:'#5C6BC0', steel:'#90A4AE',
   };
-  return colors[type] || '#888';
+  return m[t] || '#9E9E9E';
+}
+
+function typeEmoji(t) {
+  const m = {
+    fire:'🔥', water:'💧', grass:'🌿', electric:'⚡', psychic:'🔮',
+    ice:'❄️', dragon:'🐉', dark:'🌑', fairy:'✨', normal:'⭕',
+    fighting:'🥊', flying:'🌪️', poison:'☠️', ground:'🌍', rock:'🪨',
+    bug:'🐛', ghost:'👻', steel:'⚙️',
+  };
+  return m[t] || '❓';
 }
 
 // ===========================
@@ -399,7 +431,7 @@ function getTypeColor(type) {
 // ===========================
 async function init() {
   await fetchTypes();
-  await fetchPokemonPage(STATE.currentPage);
+  await fetchAll();
 }
 
 init();

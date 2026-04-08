@@ -1,97 +1,96 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pokédex Explorer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
   <!-- HEADER -->
   <header class="header">
     <div class="header-inner">
-      <div class="logo">
-        <span class="logo-ball"></span>
-        <h1>Pokédex <span>Explorer</span></h1>
+      <div class="header-top">
+        <h1 class="page-title">Discovery</h1>
+        <button class="theme-btn" id="themeToggle" title="Toggle theme">
+          <span id="themeIcon">🌙</span>
+        </button>
       </div>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-        <span class="sun">☀️</span>
-        <span class="moon">🌙</span>
-      </button>
+      <div class="search-bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Search Pokémon…" autocomplete="off"/>
+        <span class="search-count" id="searchHint"></span>
+      </div>
     </div>
   </header>
 
-  <!-- CONTROLS -->
-  <section class="controls">
-    <div class="controls-inner">
-
-      <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input
-          type="text"
-          id="searchInput"
-          class="search-input"
-          placeholder="Search Pokémon..."
-          autocomplete="off"
-        />
+  <!-- FILTERS -->
+  <div class="filters-row">
+    <div class="filters-inner">
+      <div class="filter-chips" id="typeChips">
+        <button class="type-chip active" data-type="">All</button>
       </div>
-
-      <select id="typeFilter" class="select-input">
-        <option value="">All Types</option>
-      </select>
-
-      <select id="sortSelect" class="select-input">
-        <option value="id-asc">ID: Low to High</option>
-        <option value="id-desc">ID: High to Low</option>
-        <option value="name-asc">Name: A → Z</option>
-        <option value="name-desc">Name: Z → A</option>
-      </select>
-
+      <div class="sort-wrap">
+        <select id="sortSelect" class="sort-select">
+          <option value="id-asc">ID ↑</option>
+          <option value="id-desc">ID ↓</option>
+          <option value="name-asc">A → Z</option>
+          <option value="name-desc">Z → A</option>
+        </select>
+      </div>
+      <button class="fav-chip" id="favToggleBtn">♥ Favs</button>
     </div>
-  </section>
+  </div>
 
   <!-- STATS BAR -->
-  <div class="stats-bar">
-    <span id="pokemonCount">Loading Pokémon...</span>
-    <button class="fav-toggle-btn" id="favToggleBtn">❤️ Show Favourites</button>
+  <div class="stats-row">
+    <div class="stats-inner">
+      <span class="nearby-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        Pokémon nearby
+      </span>
+      <span class="count-text" id="pokemonCount">Loading…</span>
+    </div>
   </div>
 
   <!-- LOADER -->
-  <div class="loader-wrap" id="loader">
-    <div class="pokeball-loader">
-      <div class="ball">
-        <div class="ball-top"></div>
-        <div class="ball-middle"></div>
-        <div class="ball-bottom"></div>
-      </div>
+  <div class="loader-screen" id="loader">
+    <div class="pokeball-anim">
+      <div class="pa-top"></div>
+      <div class="pa-bot"></div>
+      <div class="pa-line"></div>
+      <div class="pa-dot"></div>
     </div>
-    <p>Loading Pokémon...</p>
+    <p>Loading Pokémon…</p>
   </div>
 
-  <!-- POKEMON GRID -->
-  <main class="grid" id="pokemonGrid"></main>
+  <!-- GRID -->
+  <main class="poke-grid" id="pokemonGrid"></main>
 
-  <!-- NO RESULTS -->
-  <div class="no-results hidden" id="noResults">
-    <p>😢 No Pokémon found!</p>
-    <span>Try a different search or filter.</span>
+  <!-- EMPTY -->
+  <div class="empty-state hidden" id="noResults">
+    <p>🔍 No Pokémon found</p>
+    <span>Try adjusting your search or filter</span>
   </div>
 
   <!-- PAGINATION -->
-  <div class="pagination" id="pagination">
-    <button class="page-btn" id="prevBtn" disabled>← Prev</button>
-    <span class="page-info" id="pageInfo">Page 1</span>
-    <button class="page-btn" id="nextBtn">Next →</button>
+  <div class="pager" id="pagination">
+    <button class="pager-btn" id="prevBtn" disabled>‹ Prev</button>
+    <span class="pager-dots" id="pageInfo">1 / 1</span>
+    <button class="pager-btn" id="nextBtn">Next ›</button>
   </div>
 
-  <!-- MODAL -->
+  <!-- DETAIL MODAL -->
   <div class="modal-overlay hidden" id="modalOverlay">
-    <div class="modal" id="modal">
-      <button class="modal-close" id="modalClose">✕</button>
-      <div class="modal-content" id="modalContent"></div>
+    <div class="modal-sheet" id="modal">
+      <button class="modal-back" id="modalClose">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      </button>
+      <button class="modal-star" id="modalFav">☆</button>
+      <div id="modalContent"></div>
     </div>
   </div>
 
